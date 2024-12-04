@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}flyingrtxFund 量化回测平台{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        /* 导航栏样式 */
+        .navbar {
+            background: linear-gradient(135deg, #1a2a6c, #2c3e50);
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: white !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .nav-link {
+            color: rgba(255,255,255,0.9) !important;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-link:hover {
+            color: white !important;
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: 0;
+            left: 50%;
+            background-color: white;
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* 页脚样式 */
+        .footer {
+            background: linear-gradient(135deg, #2c3e50, #1a2a6c);
+            color: white;
+            padding: 20px 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+        }
+
+        .footer p {
+            margin: 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* 日志容器样式 */
+        .log-container {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 400px;
+            height: 300px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .log-header {
+            padding: 12px 15px;
+            background: linear-gradient(135deg, #2c3e50, #1a2a6c);
+            color: white;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+
+        .log-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .log-controls button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .log-controls button:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .log-content {
+            flex-grow: 1;
+            padding: 12px;
+            overflow-y: auto;
+            background: #1e1e1e;
+            color: #fff;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        /* 日志状态样式 */
+        .log-minimized {
+            height: 48px !important;
+        }
+
+        .log-minimized .log-content {
+            display: none;
+        }
+
+        .log-collapsed {
+            width: 200px !important;
+            right: -170px;
+        }
+
+        .log-collapsed:hover {
+            right: 20px;
+        }
+
+        /* 日志条目样式 */
+        .log-entry {
+            margin: 4px 0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: rgba(255,255,255,0.05);
+        }
+        
+        .log-debug { color: #4CAF50; }
+        .log-info { color: #2196F3; }
+        .log-trace { color: #FFFFFF; }
+        .log-warning { color: #FFC107; }
+        .log-error { color: #F44336; }
+        
+        .log-timestamp {
+            color: #888;
+            margin-right: 8px;
+            font-size: 0.9em;
+        }
+
+        /* 滚动条样式 */
+        .log-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .log-content::-webkit-scrollbar-track {
+            background: #2c3e50;
+        }
+
+        .log-content::-webkit-scrollbar-thumb {
+            background: #4a6278;
+            border-radius: 4px;
+        }
+
+        .log-content::-webkit-scrollbar-thumb:hover {
+            background: #557086;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="bi bi-graph-up"></i>flyingrtxFund</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="bi bi-house"></i> 首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/backtest"><i class="bi bi-arrow-repeat"></i> 回测</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/strategy"><i class="bi bi-gear"></i> 策略</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/data"><i class="bi bi-database"></i> 数据</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analysis"><i class="bi bi-bar-chart"></i> 分析</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- 日志框 -->
+    <div id="log-container" class="log-container">
+        <div class="log-header">
+            <span><i class="bi bi-terminal"></i> 系统日志</span>
+            <div class="log-controls">
+                <button id="collapse-log" title="收起/展开"><i class="bi bi-chevron-right"></i></button>
+                <button id="clear-log" title="清空日志"><i class="bi bi-trash"></i></button>
+                <button id="minimize-log" title="最小化"><i class="bi bi-dash"></i></button>
+            </div>
+        </div>
+        <div id="log-content" class="log-content">
+            <!-- 日志内容将在这里动态显示 -->
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container text-center">
+            <p>© 2024 量化回测平台 | <i class="bi bi-graph-up"></i> 专注于量化交易策略的回测与分析</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // 日志框拖动功能
+        const logContainer = document.getElementById('log-container');
+        const logHeader = document.querySelector('.log-header');
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        logHeader.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+
+        function dragStart(e) {
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+            if (e.target === logHeader || e.target.parentElement === logHeader) {
+                isDragging = true;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+                xOffset = currentX;
+                yOffset = currentY;
+                setTranslate(currentX, currentY, logContainer);
+            }
+        }
+
+        function dragEnd(e) {
+            isDragging = false;
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+
+        // 最小化功能
+        document.getElementById('minimize-log').addEventListener('click', function() {
+            logContainer.classList.toggle('log-minimized');
+        });
+
+        // 收起/展开功能
+        document.getElementById('collapse-log').addEventListener('click', function() {
+            logContainer.classList.toggle('log-collapsed');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('bi-chevron-right');
+            icon.classList.toggle('bi-chevron-left');
+        });
+
+        // 清空日志
+        document.getElementById('clear-log').addEventListener('click', function() {
+            document.getElementById('log-content').innerHTML = '';
+        });
+
+        // Socket.IO 连接
+        const socket = io();
+        
+        // 监听日志事件
+        socket.on('log', function(logData) {
+            const logContent = document.getElementById('log-content');
+            
+            // 创建新的日志条目
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${logData.level.toLowerCase()}`;
+            
+            // 添加时间戳和内容
+            logEntry.innerHTML = `<span class="log-timestamp">${logData.timestamp}</span> ${logData.content}`;
+            
+            // 添加到日志容器
+            logContent.appendChild(logEntry);
+            
+            // 滚动到底部
+            logContent.scrollTop = logContent.scrollHeight;
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

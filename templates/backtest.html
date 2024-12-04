@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}回测系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        width: 100%;
+        height: 500px;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        margin: 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6c757d;
+    }
+
+    .bk-selector {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    .bk-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .bk-item {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .bk-item:last-child {
+        border-bottom: none;
+    }
+
+    .bk-code {
+        color: #6c757d;
+        font-size: 0.9em;
+    }
+
+    .results-container {
+        margin-top: 20px;
+        display: none;
+    }
+
+    .result-card {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+    }
+
+    .error-message {
+        color: #dc3545;
+        margin-top: 10px;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- K线图区域 -->
+        <div class="col-md-9">
+            <div class="chart-container">
+                <h3>K线图表区域（开发中）</h3>
+            </div>
+            <!-- 回测结果区域 -->
+            <div class="results-container">
+                <h4 class="mb-3">回测结果</h4>
+                <div id="results-area"></div>
+            </div>
+            <div class="loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <p class="mt-2">正在进行回测分析...</p>
+            </div>
+            <div class="error-message"></div>
+        </div>
+
+        <!-- 板块选择区域 -->
+        <div class="col-md-3">
+            <div class="bk-selector">
+                <h4 class="mb-3">选择板块</h4>
+                <div class="bk-list">
+                    {% for bk in bks %}
+                    <div class="bk-item">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="{{ bk.code }}" id="bk-{{ bk.code }}" data-name="{{ bk.name }}">
+                            <label class="form-check-label" for="bk-{{ bk.code }}">
+                                {{ bk.name }}
+                                <br>
+                                <span class="bk-code">{{ bk.code }}</span>
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary w-100" onclick="startBacktest()">开始回测</button>
+                </div>
+            </div>
+            
+            <div class="strategy-selector">
+                <h4 class="mb-3">策略设置</h4>
+                <div class="form-group mb-3">
+                    <label for="strategy-select">选择策略</label>
+                    <select class="form-control" id="strategy-select" onchange="updateStrategyParams()">
+                        {% for strategy_id, strategy in strategies.items() %}
+                        <option value="{{ strategy_id }}">{{ strategy.get_meta().name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="initial-money">初始资金</label>
+                    <input type="number" class="form-control" id="initial-money" value="1000000">
+                </div>
+                
+                <div id="strategy-params">
+                    <!-- 策略参数将通过JS动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 策略元数据缓存
+const strategyMeta = {
+    {% for strategy_id, strategy in strategies.items() %}
+    "{{ strategy_id }}": {{ strategy.get_meta()|tojson|safe }},
+    {% endfor %}
+};
+
+function updateStrategyParams() {
+    const strategyId = document.getElementById('strategy-select').value;
+    const meta = strategyMeta[strategyId];
+    const container = document.getElementById('strategy-params');
+    
+    container.innerHTML = '';
+    
+    for (const [paramName, paramInfo] of Object.entries(meta.parameters)) {
+        const div = document.createElement('div');
+        div.className = 'form-group mb-3';
+        
+        div.innerHTML = `
+            <label for="param-${paramName}">${paramName}</label>
+            <input type="${paramInfo.type === 'int' || paramInfo.type === 'float' ? 'number' : 'text'}" 
+                   class="form-control" 
+                   id="param-${paramName}"
+                   value="${paramInfo.default}"
+                   step="${paramInfo.type === 'float' ? '0.01' : '1'}"
+                   title="${paramInfo.description}">
+            <small class="form-text text-muted">${paramInfo.description}</small>
+        `;
+        
+        container.appendChild(div);
+    }
+}
+
+async function startBacktest() {
+    const selectedBks = [];
+    document.querySelectorAll('.form-check-input:checked').forEach(checkbox => {
+        selectedBks.push(checkbox.value);
+    });
+    
+    if (selectedBks.length === 0) {
+        alert('请至少选择一个板块！');
+        return;
+    }
+
+    // 显示加载动画，隐藏其他内容
+    document.querySelector('.loading').style.display = 'block';
+    document.querySelector('.results-container').style.display = 'none';
+    document.querySelector('.error-message').style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/backtest', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                bk_codes: selectedBks,
+                strategy_id: document.getElementById('strategy-select').value,
+                initial_money: document.getElementById('initial-money').value,
+                strategy_params: null
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            displayResults(result.data);
+        } else {
+            showError(result.message);
+        }
+    } catch (error) {
+        showError('回测请求失败，请稍后重试'+error);
+    } finally {
+        document.querySelector('.loading').style.display = 'none';
+    }
+}
+
+function displayResults(data) {
+    const resultsArea = document.getElementById('results-area');
+    resultsArea.innerHTML = '';
+    
+    for (const [bkCode, metrics] of Object.entries(data)) {
+        const bkName = document.querySelector(`#bk-${bkCode}`).dataset.name;
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        card.innerHTML = `
+            <h5>${bkName} (${bkCode})</h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <p class="mb-1">收益率</p>
+                    <h6 class="${metrics.returns >= 0 ? 'text-success' : 'text-danger'}">
+                        ${(metrics.returns * 100).toFixed(2)}%
+                    </h6>
+                </div>
+                <div class="col-md-4">
+                    <p class="mb-1">最大回撤</p>
+                    <h6 class="text-danger">
+                        ${(metrics.max_drawdown * 100).toFixed(2)}%
+                    </h6>
+                </div>
+                <div class="col-md-4">
+                    <p class="mb-1">夏普比率</p>
+                    <h6>${metrics.sharpe_ratio.toFixed(2)}</h6>
+                </div>
+            </div>
+        `;
+        resultsArea.appendChild(card);
+    }
+    
+    document.querySelector('.results-container').style.display = 'block';
+}
+
+function showError(message) {
+    const errorElement = document.querySelector('.error-message');
+    errorElement.textContent = message;
+    errorElement.style.display = 'block';
+}
+</script>
+{% endblock %}
